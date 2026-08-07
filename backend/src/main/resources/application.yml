@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: portfolio-tracker
+  datasource:
+    url: jdbc:postgresql://localhost:5432/portfolio_tracker
+    username: portfolio
+    password: portfolio
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
