@@ -60,4 +60,15 @@ class TransactionControllerIntegrationTest {
                 "/api/portfolios/" + portfolio.getId() + "/transactions", TransactionResponse[].class);
         assertThat(afterDelete.getBody()).isEmpty();
     }
+
+    @Test
+    void createTransactionWithNonexistentPortfolioReturns404() {
+        CreateTransactionRequest request = new CreateTransactionRequest(
+                "AAPL", TransactionType.BUY, new BigDecimal("10"), new BigDecimal("150.00"), Instant.now());
+
+        ResponseEntity<TransactionResponse> createResp = restTemplate.postForEntity(
+                "/api/portfolios/" + Long.MAX_VALUE + "/transactions", request, TransactionResponse.class);
+
+        assertThat(createResp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
 }
