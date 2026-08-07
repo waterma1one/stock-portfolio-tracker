@@ -1,0 +1,11 @@
+.superpowers/
+.DS_Store
+
+# Java / Maven
+target/
+*.class
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
