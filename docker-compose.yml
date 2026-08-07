@@ -21,5 +21,12 @@ services:
       SPRING_DATASOURCE_USERNAME: portfolio
       SPRING_DATASOURCE_PASSWORD: portfolio
 
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
 volumes:
   pgdata:
