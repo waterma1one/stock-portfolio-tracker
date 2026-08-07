@@ -108,6 +108,8 @@ Finnhub client wrapped behind a `PriceProvider` interface — mocked in tests, r
 | Core logic (service layer, price-sync scheduler, analytics calc, React hooks/state) | Sonnet 5 (default) | Balanced reasoning |
 | High-stakes/tricky (OAuth2+JWT flow, security review, performance/benchmark-math correctness, debugging race conditions in scheduled job) | Opus 5 | Max reasoning, correctness-critical |
 
+**Commit convention:** no `Co-Authored-By: Claude` trailer on commits for this project — plain commits, author only.
+
 **`/clear` cadence:** clear at milestone boundaries only — after a milestone's tasks are all checked off, tests pass, app runs, changes committed. Never mid-milestone.
 
 **Continuation after `/clear`:** implementation plan lives at `docs/superpowers/plans/M<N>-<name>-plan.md` with checkbox tasks — source of truth is that file + git log, not conversation memory. First message after clearing:
