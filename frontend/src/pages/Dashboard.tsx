@@ -14,24 +14,31 @@ export function Dashboard() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getPortfolios().then((ps) => {
-      setPortfolios(ps);
-      if (ps.length > 0) setSelectedId(ps[0].id);
-    });
+    getPortfolios()
+      .then((ps) => {
+        setPortfolios(ps);
+        if (ps.length > 0) setSelectedId(ps[0].id);
+      })
+      .catch((e) => setError(e.message));
   }, []);
 
   useEffect(() => {
     if (selectedId === null) return;
-    getHoldings(selectedId).then(setHoldings);
-    getTransactions(selectedId).then(setTransactions);
+    getHoldings(selectedId).then(setHoldings).catch((e) => setError(e.message));
+    getTransactions(selectedId).then(setTransactions).catch((e) => setError(e.message));
   }, [selectedId]);
 
   const handleCreatePortfolio = async (name: string) => {
-    const p = await createPortfolio(name);
-    setPortfolios((prev) => [...prev, p]);
-    setSelectedId(p.id);
+    try {
+      const p = await createPortfolio(name);
+      setPortfolios((prev) => [...prev, p]);
+      setSelectedId(p.id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
 
   const refresh = async (portfolioId: number) => {
@@ -41,17 +48,27 @@ export function Dashboard() {
 
   const handleAddTransaction = async (input: CreateTransactionInput) => {
     if (selectedId === null) return;
-    await createTransaction(selectedId, input);
-    await refresh(selectedId);
+    try {
+      await createTransaction(selectedId, input);
+      await refresh(selectedId);
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
 
   const handleDeleteTransaction = async (id: number) => {
-    await deleteTransaction(id);
-    if (selectedId !== null) await refresh(selectedId);
+    try {
+      await deleteTransaction(id);
+      if (selectedId !== null) await refresh(selectedId);
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen">
+      {error && <div className="bg-red-100 text-red-700 p-2 rounded m-4">{error}</div>}
+      <div className="flex">
       <PortfolioList
         portfolios={portfolios}
         selectedId={selectedId}
@@ -71,6 +88,7 @@ export function Dashboard() {
           </>
         )}
       </main>
+      </div>
     </div>
   );
 }
