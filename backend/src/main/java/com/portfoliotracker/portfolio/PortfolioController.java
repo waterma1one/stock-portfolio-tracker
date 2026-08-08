@@ -6,6 +6,7 @@ import com.portfoliotracker.transaction.TransactionRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -14,11 +15,14 @@ import java.util.List;
 public class PortfolioController {
 
     private final PortfolioService portfolioService;
+    private final PortfolioRepository portfolioRepository;
     private final TransactionRepository transactionRepository;
 
     public PortfolioController(PortfolioService portfolioService,
+                                PortfolioRepository portfolioRepository,
                                 TransactionRepository transactionRepository) {
         this.portfolioService = portfolioService;
+        this.portfolioRepository = portfolioRepository;
         this.transactionRepository = transactionRepository;
     }
 
@@ -35,6 +39,9 @@ public class PortfolioController {
 
     @GetMapping("/{portfolioId}/holdings")
     public List<com.portfoliotracker.holding.dto.HoldingResponse> holdings(@PathVariable Long portfolioId) {
+        if (!portfolioRepository.existsById(portfolioId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Portfolio not found: " + portfolioId);
+        }
         List<com.portfoliotracker.transaction.Transaction> txs =
                 transactionRepository.findByPortfolioIdOrderByExecutedAtAsc(portfolioId);
         return com.portfoliotracker.holding.HoldingCalculator.calculate(txs).stream()

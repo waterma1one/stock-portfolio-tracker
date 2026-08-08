@@ -71,4 +71,12 @@ class TransactionControllerIntegrationTest {
 
         assertThat(createResp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
+
+    @Test
+    void listTransactionsForNonexistentPortfolioReturns404() {
+        ResponseEntity<String> listResp = restTemplate.getForEntity(
+                "/api/portfolios/999999999/transactions", String.class);
+
+        assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
 }
