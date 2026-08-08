@@ -41,4 +41,25 @@ class PortfolioControllerIntegrationTest {
                 .extracting(PortfolioResponse::name)
                 .contains("Retirement");
     }
+
+    @Test
+    void holdingsReflectTransactionHistory() {
+        ResponseEntity<PortfolioResponse> createResp = restTemplate.postForEntity(
+                "/api/portfolios", new CreatePortfolioRequest("Holdings Test"), PortfolioResponse.class);
+        Long portfolioId = createResp.getBody().id();
+
+        restTemplate.postForEntity(
+                "/api/portfolios/" + portfolioId + "/transactions",
+                new com.portfoliotracker.transaction.dto.CreateTransactionRequest(
+                        "AAPL", com.portfoliotracker.transaction.TransactionType.BUY,
+                        new java.math.BigDecimal("10"), new java.math.BigDecimal("100.00"), java.time.Instant.now()),
+                com.portfoliotracker.transaction.dto.TransactionResponse.class);
+
+        ResponseEntity<com.portfoliotracker.holding.dto.HoldingResponse[]> holdingsResp = restTemplate.getForEntity(
+                "/api/portfolios/" + portfolioId + "/holdings",
+                com.portfoliotracker.holding.dto.HoldingResponse[].class);
+
+        assertThat(holdingsResp.getBody()).hasSize(1);
+        assertThat(holdingsResp.getBody()[0].symbol()).isEqualTo("AAPL");
+    }
 }
