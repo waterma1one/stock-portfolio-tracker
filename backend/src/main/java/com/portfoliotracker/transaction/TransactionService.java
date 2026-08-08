@@ -30,6 +30,9 @@ public class TransactionService {
     }
 
     public List<Transaction> findByPortfolio(Long portfolioId) {
+        if (!portfolioRepository.existsById(portfolioId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Portfolio not found: " + portfolioId);
+        }
         return transactionRepository.findByPortfolioIdOrderByExecutedAtAsc(portfolioId);
     }
 

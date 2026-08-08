@@ -62,4 +62,41 @@ class PortfolioControllerIntegrationTest {
         assertThat(holdingsResp.getBody()).hasSize(1);
         assertThat(holdingsResp.getBody()[0].symbol()).isEqualTo("AAPL");
     }
+
+    @Test
+    void deletingTransactionRecomputesHoldings() {
+        ResponseEntity<PortfolioResponse> createResp = restTemplate.postForEntity(
+                "/api/portfolios", new CreatePortfolioRequest("Delete Recompute Test"), PortfolioResponse.class);
+        Long portfolioId = createResp.getBody().id();
+
+        ResponseEntity<com.portfoliotracker.transaction.dto.TransactionResponse> txResp = restTemplate.postForEntity(
+                "/api/portfolios/" + portfolioId + "/transactions",
+                new com.portfoliotracker.transaction.dto.CreateTransactionRequest(
+                        "AAPL", com.portfoliotracker.transaction.TransactionType.BUY,
+                        new java.math.BigDecimal("10"), new java.math.BigDecimal("100.00"), java.time.Instant.now()),
+                com.portfoliotracker.transaction.dto.TransactionResponse.class);
+        Long transactionId = txResp.getBody().id();
+
+        ResponseEntity<com.portfoliotracker.holding.dto.HoldingResponse[]> holdingsResp = restTemplate.getForEntity(
+                "/api/portfolios/" + portfolioId + "/holdings",
+                com.portfoliotracker.holding.dto.HoldingResponse[].class);
+        assertThat(holdingsResp.getBody()).hasSize(1);
+        assertThat(holdingsResp.getBody()[0].symbol()).isEqualTo("AAPL");
+        assertThat(holdingsResp.getBody()[0].quantity()).isEqualByComparingTo(new java.math.BigDecimal("10"));
+
+        restTemplate.delete("/api/transactions/" + transactionId);
+
+        ResponseEntity<com.portfoliotracker.holding.dto.HoldingResponse[]> afterDeleteResp = restTemplate.getForEntity(
+                "/api/portfolios/" + portfolioId + "/holdings",
+                com.portfoliotracker.holding.dto.HoldingResponse[].class);
+        assertThat(afterDeleteResp.getBody()).isEmpty();
+    }
+
+    @Test
+    void holdingsForNonexistentPortfolioReturns404() {
+        ResponseEntity<String> resp = restTemplate.getForEntity(
+                "/api/portfolios/999999999/holdings", String.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
 }
