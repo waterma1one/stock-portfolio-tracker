@@ -8,6 +8,9 @@ export interface Holding {
   symbol: string;
   quantity: number;
   avgCostBasis: number;
+  currentPrice: number | null;
+  marketValue: number | null;
+  unrealizedPnl: number | null;
 }
 
 export type TransactionType = 'BUY' | 'SELL';
