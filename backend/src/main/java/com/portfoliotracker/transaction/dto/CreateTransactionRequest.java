@@ -1,5 +1,6 @@
 package com.portfoliotracker.transaction.dto;
 
+import com.portfoliotracker.common.SymbolNormalizer;
 import com.portfoliotracker.transaction.TransactionType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -20,6 +21,6 @@ public record CreateTransactionRequest(
         @NotNull Instant executedAt
 ) {
     public CreateTransactionRequest {
-        symbol = symbol == null ? null : symbol.trim().toUpperCase();
+        symbol = SymbolNormalizer.normalize(symbol);
     }
 }

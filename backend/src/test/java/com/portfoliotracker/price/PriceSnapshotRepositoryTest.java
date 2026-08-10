@@ -54,4 +54,21 @@ class PriceSnapshotRepositoryTest {
 
         assertThat(latest).isEmpty();
     }
+
+    /**
+     * PriceService.fetchAndStore already normalizes before saving, but any future direct save
+     * bypassing the service must not be able to write a non-canonical symbol either -- same
+     * defense-in-depth rationale as Transaction's entity-level normalization.
+     */
+    @Test
+    void savingSnapshotNormalizesSymbolEvenWhenServiceIsBypassed() {
+        PriceSnapshot snapshot = new PriceSnapshot();
+        snapshot.setSymbol("  aapl  ");
+        snapshot.setPrice(new BigDecimal("151.12"));
+        snapshot.setFetchedAt(Instant.now());
+
+        PriceSnapshot saved = priceSnapshotRepository.save(snapshot);
+
+        assertThat(saved.getSymbol()).isEqualTo("AAPL");
+    }
 }

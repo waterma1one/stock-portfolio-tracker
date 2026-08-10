@@ -14,13 +14,15 @@ public record HoldingResponse(String symbol, BigDecimal quantity, BigDecimal avg
 
     public static HoldingResponse from(Holding holding, Optional<PriceSnapshot> latestPrice) {
         BigDecimal currentPrice = latestPrice.map(PriceSnapshot::getPrice).orElse(null);
-        BigDecimal marketValue = currentPrice != null
-                ? currentPrice.multiply(holding.quantity()).setScale(MONEY_SCALE, RoundingMode.HALF_UP)
-                : null;
+        BigDecimal marketValue = currentPrice != null ? scale(currentPrice.multiply(holding.quantity())) : null;
         BigDecimal unrealizedPnl = currentPrice != null
-                ? currentPrice.subtract(holding.avgCostBasis()).multiply(holding.quantity()).setScale(MONEY_SCALE, RoundingMode.HALF_UP)
+                ? scale(currentPrice.subtract(holding.avgCostBasis()).multiply(holding.quantity()))
                 : null;
         return new HoldingResponse(holding.symbol(), holding.quantity(), holding.avgCostBasis(),
                 currentPrice, marketValue, unrealizedPnl);
+    }
+
+    private static BigDecimal scale(BigDecimal value) {
+        return value.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
     }
 }

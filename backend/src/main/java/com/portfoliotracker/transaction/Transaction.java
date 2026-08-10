@@ -1,5 +1,6 @@
 package com.portfoliotracker.transaction;
 
+import com.portfoliotracker.common.SymbolNormalizer;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -37,6 +38,17 @@ public class Transaction {
 
     @Column(name = "executed_at", nullable = false)
     private Instant executedAt;
+
+    /**
+     * Defense-in-depth: DTO-level normalization only covers requests through the REST API.
+     * This guarantees every persisted row has a canonical symbol regardless of how it was
+     * constructed or saved (batch import, admin tooling, a migration script).
+     */
+    @PrePersist
+    @PreUpdate
+    private void normalizeSymbol() {
+        symbol = SymbolNormalizer.normalize(symbol);
+    }
 
     /** Convenience factory for building transient test fixtures without portfolioId/id. */
     public static Transaction of(String symbol, TransactionType type, BigDecimal quantity,

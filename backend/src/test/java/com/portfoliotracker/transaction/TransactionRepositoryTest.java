@@ -57,4 +57,23 @@ class TransactionRepositoryTest {
 
         org.assertj.core.api.Assertions.assertThat(saved.getId()).isNotNull();
     }
+
+    /**
+     * DTO-level normalization (CreateTransactionRequest's compact constructor) only protects
+     * requests that go through the REST API. Any direct save -- exactly what this test does,
+     * bypassing the DTO entirely -- must still end up with a canonical symbol, or the
+     * case-fragmentation bug this normalization was meant to fix can resurface via any future
+     * non-REST write path (batch import, admin tooling, a migration script).
+     */
+    @Test
+    void savingTransactionNormalizesSymbolEvenWhenDtoIsBypassed() {
+        Transaction transaction = Transaction.of(
+                "  aapl  ", TransactionType.BUY,
+                new BigDecimal("10"), new BigDecimal("100.00"), Instant.now());
+        transaction.setPortfolioId(1L);
+
+        Transaction saved = transactionRepository.saveAndFlush(transaction);
+
+        org.assertj.core.api.Assertions.assertThat(saved.getSymbol()).isEqualTo("AAPL");
+    }
 }
