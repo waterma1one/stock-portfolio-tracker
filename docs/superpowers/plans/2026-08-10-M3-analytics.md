@@ -2214,18 +2214,160 @@ git commit -m "Add performance-vs-SPY line chart to dashboard"
 
 **Suggested model:** Opus 5 (correctness-critical realized-gain math over sequential BUY/SELL history, per spec's "High-stakes/tricky" model tier)
 
+**Design note — no duplicated replay logic:** Realized P&L requires replaying transactions in order maintaining a running average cost basis per symbol -- the exact same accounting `HoldingCalculator.calculate` (M1) already performs to compute final holdings. Rather than reimplementing that replay loop a second time in a new `PnlCalculator` (which would leave two independent copies of the same BUY/SELL average-cost algorithm to keep in sync), this task extends `HoldingCalculator` itself with a second entry point, `calculateRealizedPnl`, that shares one private replay method with the existing `calculate`. `PnlCalculator` then only orchestrates: delegate the realized leg to `HoldingCalculator.calculateRealizedPnl`, compute the unrealized leg from `HoldingCalculator.calculate`'s output (same per-holding math `HoldingResponse.from` already does in M2, summed here instead of returned per-row).
+
 **Files:**
+- Modify: `backend/src/main/java/com/portfoliotracker/holding/HoldingCalculator.java`
+- Modify: `backend/src/test/java/com/portfoliotracker/holding/HoldingCalculatorTest.java`
 - Create: `backend/src/main/java/com/portfoliotracker/analytics/PnlCalculator.java`
 - Create: `backend/src/main/java/com/portfoliotracker/analytics/dto/PnlResponse.java`
 - Test: `backend/src/test/java/com/portfoliotracker/analytics/PnlCalculatorTest.java`
 
 **Interfaces:**
-- Consumes: `Transaction` entities (M1, ordered by `executedAt` ascending — same ordering `TransactionRepository.findByPortfolioIdOrderByExecutedAtAsc` already guarantees), `HoldingCalculator.calculate(List<Transaction>): List<Holding>` (M1) for the unrealized leg.
-- Produces: `PnlCalculator.calculate(List<Transaction> transactions, java.util.function.Function<String, java.util.Optional<BigDecimal>> priceLookup): PnlResponse` where `PnlResponse(BigDecimal realizedPnl, BigDecimal unrealizedPnl)`. `GET /api/portfolios/{id}/analytics/pnl` → `PnlResponse` (Task 12).
+- Consumes: `Transaction` entities (M1, ordered by `executedAt` ascending — same ordering `TransactionRepository.findByPortfolioIdOrderByExecutedAtAsc` already guarantees).
+- Produces: `HoldingCalculator.calculateRealizedPnl(List<Transaction>): BigDecimal` (new, alongside the existing `calculate`). `PnlCalculator.calculate(List<Transaction> transactions, java.util.function.Function<String, java.util.Optional<BigDecimal>> priceLookup): PnlResponse` where `PnlResponse(BigDecimal realizedPnl, BigDecimal unrealizedPnl)`. `GET /api/portfolios/{id}/analytics/pnl` → `PnlResponse` (Task 12).
 
-**Algorithm:** Realized P&L accrues on every SELL: replay transactions in order maintaining a running average cost basis per symbol (identical accounting to `HoldingCalculator`'s existing avg-cost logic), and each SELL's realized gain is `(sell price - avg cost basis at that moment) * sell quantity`, summed across all symbols and all SELLs. Unrealized P&L is the sum of each current holding's `(currentPrice - avgCostBasis) * quantity` for symbols with a cached price — exactly the per-holding math `HoldingResponse.from` already does (M2), just summed here instead of returned per-row.
+- [ ] **Step 1: Write failing unit tests for `HoldingCalculator.calculateRealizedPnl`**
 
-- [ ] **Step 1: Write failing unit tests for the pure calculator**
+Add these test methods inside the existing `HoldingCalculatorTest` class (do not modify the 5 existing test methods):
+
+```java
+    @Test
+    void calculateRealizedPnlAccruesOnSellAtAverageCostBasis() {
+        List<Transaction> txs = List.of(
+                Transaction.of("AAPL", TransactionType.BUY, new BigDecimal("10"), new BigDecimal("100.00"), Instant.parse("2026-01-01T00:00:00Z")),
+                Transaction.of("AAPL", TransactionType.SELL, new BigDecimal("4"), new BigDecimal("150.00"), Instant.parse("2026-02-01T00:00:00Z")));
+
+        BigDecimal realizedPnl = HoldingCalculator.calculateRealizedPnl(txs);
+
+        // avg cost 100.00, sold 4 @ 150.00 -> realized gain = (150-100)*4 = 200
+        assertThat(realizedPnl).isEqualByComparingTo("200");
+    }
+
+    @Test
+    void calculateRealizedPnlAccumulatesAcrossMultipleSellsAndSymbols() {
+        List<Transaction> txs = List.of(
+                Transaction.of("AAPL", TransactionType.BUY, new BigDecimal("10"), new BigDecimal("100.00"), Instant.parse("2026-01-01T00:00:00Z")),
+                Transaction.of("AAPL", TransactionType.SELL, new BigDecimal("5"), new BigDecimal("120.00"), Instant.parse("2026-01-02T00:00:00Z")),
+                Transaction.of("MSFT", TransactionType.BUY, new BigDecimal("4"), new BigDecimal("300.00"), Instant.parse("2026-01-03T00:00:00Z")),
+                Transaction.of("MSFT", TransactionType.SELL, new BigDecimal("2"), new BigDecimal("250.00"), Instant.parse("2026-01-04T00:00:00Z")));
+
+        BigDecimal realizedPnl = HoldingCalculator.calculateRealizedPnl(txs);
+
+        // AAPL: (120-100)*5 = 100. MSFT: (250-300)*2 = -100. Total = 0
+        assertThat(realizedPnl).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void calculateRealizedPnlIsZeroWhenNoSellsHaveOccurred() {
+        List<Transaction> txs = List.of(
+                Transaction.of("AAPL", TransactionType.BUY, new BigDecimal("10"), new BigDecimal("100.00"), Instant.now()));
+
+        BigDecimal realizedPnl = HoldingCalculator.calculateRealizedPnl(txs);
+
+        assertThat(realizedPnl).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void calculateRealizedPnlIsZeroForEmptyTransactionList() {
+        BigDecimal realizedPnl = HoldingCalculator.calculateRealizedPnl(List.of());
+
+        assertThat(realizedPnl).isEqualByComparingTo("0");
+    }
+```
+
+- [ ] **Step 2: Run tests to verify the new ones fail**
+
+Run: `cd backend && mvn test -Dtest=HoldingCalculatorTest`
+Expected: FAIL — the 4 new tests fail with a compile error (`calculateRealizedPnl` doesn't exist yet); the 5 pre-existing tests still pass once the compile error is fixed enough to run (so on the first attempt the whole file fails to compile — that's the expected RED for this step).
+
+- [ ] **Step 3: Rewrite `HoldingCalculator.java`** — extract the shared replay loop, add `calculateRealizedPnl`
+
+```java
+package com.portfoliotracker.holding;
+
+import com.portfoliotracker.transaction.Transaction;
+import com.portfoliotracker.transaction.TransactionType;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+public class HoldingCalculator {
+
+    private static final int INTERNAL_SCALE = 10;
+    private static final int RESULT_SCALE = 4;
+
+    public static List<Holding> calculate(List<Transaction> transactions) {
+        ReplayResult result = replay(transactions);
+
+        List<Holding> holdings = new ArrayList<>();
+        for (Map.Entry<String, BigDecimal> entry : result.qtyBySymbol().entrySet()) {
+            String symbol = entry.getKey();
+            BigDecimal qty = entry.getValue();
+            if (qty.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal cost = result.costBySymbol().get(symbol);
+                BigDecimal avgCostBasis = cost.divide(qty, RESULT_SCALE, RoundingMode.HALF_UP);
+                holdings.add(new Holding(symbol, qty, avgCostBasis));
+            }
+        }
+        return holdings;
+    }
+
+    public static BigDecimal calculateRealizedPnl(List<Transaction> transactions) {
+        return replay(transactions).realizedPnl();
+    }
+
+    private static ReplayResult replay(List<Transaction> transactions) {
+        Map<String, BigDecimal> qtyBySymbol = new LinkedHashMap<>();
+        Map<String, BigDecimal> costBySymbol = new LinkedHashMap<>();
+        BigDecimal realizedPnl = BigDecimal.ZERO;
+
+        for (Transaction tx : transactions) {
+            String symbol = tx.getSymbol();
+            BigDecimal qty = qtyBySymbol.getOrDefault(symbol, BigDecimal.ZERO);
+            BigDecimal cost = costBySymbol.getOrDefault(symbol, BigDecimal.ZERO);
+
+            if (tx.getType() == TransactionType.BUY) {
+                cost = cost.add(tx.getQuantity().multiply(tx.getPrice()));
+                qty = qty.add(tx.getQuantity());
+            } else {
+                if (qty.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal avgCost = cost.divide(qty, INTERNAL_SCALE, RoundingMode.HALF_UP);
+                    realizedPnl = realizedPnl.add(tx.getPrice().subtract(avgCost).multiply(tx.getQuantity()));
+                    cost = cost.subtract(avgCost.multiply(tx.getQuantity()));
+                }
+                qty = qty.subtract(tx.getQuantity());
+            }
+
+            qtyBySymbol.put(symbol, qty);
+            costBySymbol.put(symbol, cost);
+        }
+
+        return new ReplayResult(qtyBySymbol, costBySymbol, realizedPnl);
+    }
+
+    private record ReplayResult(Map<String, BigDecimal> qtyBySymbol, Map<String, BigDecimal> costBySymbol, BigDecimal realizedPnl) {
+    }
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd backend && mvn test -Dtest=HoldingCalculatorTest`
+Expected: PASS (9 tests: the 5 pre-existing `calculate` tests plus the 4 new `calculateRealizedPnl` tests — this proves the extraction preserved `calculate`'s existing behavior exactly)
+
+- [ ] **Step 5: Commit the `HoldingCalculator` extension**
+
+```bash
+git add backend/src/main/java/com/portfoliotracker/holding/HoldingCalculator.java backend/src/test/java/com/portfoliotracker/holding/HoldingCalculatorTest.java
+git commit -m "Extend HoldingCalculator with calculateRealizedPnl, sharing the existing replay loop"
+```
+
+- [ ] **Step 6: Write failing unit tests for `PnlCalculator`**
 
 ```java
 package com.portfoliotracker.analytics;
@@ -2250,7 +2392,7 @@ class PnlCalculatorTest {
     }
 
     @Test
-    void realizedPnlAccruesOnSellAtAverageCostBasis() {
+    void realizedLegDelegatesToHoldingCalculator() {
         List<Transaction> transactions = List.of(
                 tx("AAPL", TransactionType.BUY, "10", "100.00"),
                 tx("AAPL", TransactionType.SELL, "4", "150.00"));
@@ -2259,20 +2401,6 @@ class PnlCalculatorTest {
 
         // avg cost 100.00, sold 4 @ 150.00 -> realized gain = (150-100)*4 = 200
         assertThat(response.realizedPnl()).isEqualByComparingTo("200.0000");
-    }
-
-    @Test
-    void realizedPnlAccumulatesAcrossMultipleSellsAndSymbols() {
-        List<Transaction> transactions = List.of(
-                tx("AAPL", TransactionType.BUY, "10", "100.00"),
-                tx("AAPL", TransactionType.SELL, "5", "120.00"),
-                tx("MSFT", TransactionType.BUY, "4", "300.00"),
-                tx("MSFT", TransactionType.SELL, "2", "250.00"));
-
-        PnlResponse response = PnlCalculator.calculate(transactions, symbol -> Optional.empty());
-
-        // AAPL: (120-100)*5 = 100. MSFT: (250-300)*2 = -100. Total = 0
-        assertThat(response.realizedPnl()).isEqualByComparingTo("0.0000");
     }
 
     @Test
@@ -2307,12 +2435,12 @@ class PnlCalculatorTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 7: Run test to verify it fails**
 
 Run: `cd backend && mvn test -Dtest=PnlCalculatorTest`
-Expected: FAIL — compile error, classes don't exist yet.
+Expected: FAIL — compile error, `PnlCalculator`/`PnlResponse` don't exist yet.
 
-- [ ] **Step 3: Write `dto/PnlResponse.java`**
+- [ ] **Step 8: Write `dto/PnlResponse.java`**
 
 ```java
 package com.portfoliotracker.analytics.dto;
@@ -2323,7 +2451,7 @@ public record PnlResponse(BigDecimal realizedPnl, BigDecimal unrealizedPnl) {
 }
 ```
 
-- [ ] **Step 4: Write `PnlCalculator.java`**
+- [ ] **Step 9: Write `PnlCalculator.java`**
 
 ```java
 package com.portfoliotracker.analytics;
@@ -2332,55 +2460,22 @@ import com.portfoliotracker.analytics.dto.PnlResponse;
 import com.portfoliotracker.holding.Holding;
 import com.portfoliotracker.holding.HoldingCalculator;
 import com.portfoliotracker.transaction.Transaction;
-import com.portfoliotracker.transaction.TransactionType;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
 public class PnlCalculator {
 
-    private static final int INTERNAL_SCALE = 10;
     private static final int RESULT_SCALE = 4;
 
     public static PnlResponse calculate(List<Transaction> transactions, Function<String, Optional<BigDecimal>> priceLookup) {
-        BigDecimal realizedPnl = calculateRealizedPnl(transactions);
+        BigDecimal realizedPnl = HoldingCalculator.calculateRealizedPnl(transactions);
         BigDecimal unrealizedPnl = calculateUnrealizedPnl(transactions, priceLookup);
         return new PnlResponse(realizedPnl.setScale(RESULT_SCALE, RoundingMode.HALF_UP),
                 unrealizedPnl.setScale(RESULT_SCALE, RoundingMode.HALF_UP));
-    }
-
-    private static BigDecimal calculateRealizedPnl(List<Transaction> transactions) {
-        Map<String, BigDecimal> qtyBySymbol = new HashMap<>();
-        Map<String, BigDecimal> costBySymbol = new HashMap<>();
-        BigDecimal realized = BigDecimal.ZERO;
-
-        for (Transaction tx : transactions) {
-            String symbol = tx.getSymbol();
-            BigDecimal qty = qtyBySymbol.getOrDefault(symbol, BigDecimal.ZERO);
-            BigDecimal cost = costBySymbol.getOrDefault(symbol, BigDecimal.ZERO);
-
-            if (tx.getType() == TransactionType.BUY) {
-                cost = cost.add(tx.getQuantity().multiply(tx.getPrice()));
-                qty = qty.add(tx.getQuantity());
-            } else {
-                if (qty.compareTo(BigDecimal.ZERO) > 0) {
-                    BigDecimal avgCost = cost.divide(qty, INTERNAL_SCALE, RoundingMode.HALF_UP);
-                    realized = realized.add(tx.getPrice().subtract(avgCost).multiply(tx.getQuantity()));
-                    cost = cost.subtract(avgCost.multiply(tx.getQuantity()));
-                }
-                qty = qty.subtract(tx.getQuantity());
-            }
-
-            qtyBySymbol.put(symbol, qty);
-            costBySymbol.put(symbol, cost);
-        }
-
-        return realized;
     }
 
     private static BigDecimal calculateUnrealizedPnl(List<Transaction> transactions, Function<String, Optional<BigDecimal>> priceLookup) {
@@ -2398,16 +2493,16 @@ public class PnlCalculator {
 }
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [ ] **Step 10: Run test to verify it passes**
 
 Run: `cd backend && mvn test -Dtest=PnlCalculatorTest`
-Expected: PASS (5 tests)
+Expected: PASS (4 tests)
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
 git add backend/src/main/java/com/portfoliotracker/analytics/PnlCalculator.java backend/src/main/java/com/portfoliotracker/analytics/dto/PnlResponse.java backend/src/test/java/com/portfoliotracker/analytics/PnlCalculatorTest.java
-git commit -m "Add PnlCalculator: realized gain (avg-cost accounting) and unrealized gain"
+git commit -m "Add PnlCalculator: orchestrates realized (via HoldingCalculator) and unrealized gain"
 ```
 
 ---
