@@ -1,2 +1,13 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
 finnhub:
+  base-url: https://finnhub.io/api/v1
+  api-key: test-key
+  poll-interval-ms: 60000
   scheduling-enabled: false
