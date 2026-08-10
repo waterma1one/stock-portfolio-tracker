@@ -22,7 +22,7 @@ public class Transaction {
     @Column(name = "portfolio_id", nullable = false)
     private Long portfolioId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private String symbol;
 
     @Enumerated(EnumType.STRING)

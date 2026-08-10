@@ -27,6 +27,6 @@ public class PriceService {
     }
 
     public Optional<PriceSnapshot> getLatest(String symbol) {
-        return priceSnapshotRepository.findTopBySymbolOrderByFetchedAtDesc(symbol);
+        return priceSnapshotRepository.findTopBySymbolOrderByFetchedAtDesc(symbol.trim().toUpperCase());
     }
 }

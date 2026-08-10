@@ -52,4 +52,18 @@ class PriceControllerIntegrationTest {
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
+
+    @Test
+    void lookupIsCaseInsensitive() {
+        PriceSnapshot snapshot = new PriceSnapshot();
+        snapshot.setSymbol("AAPL");
+        snapshot.setPrice(new BigDecimal("151.12"));
+        snapshot.setFetchedAt(Instant.now());
+        priceSnapshotRepository.save(snapshot);
+
+        ResponseEntity<PriceResponse> resp = restTemplate.getForEntity("/api/prices/aapl", PriceResponse.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody().symbol()).isEqualTo("AAPL");
+    }
 }
