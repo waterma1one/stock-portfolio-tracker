@@ -1,5 +1,6 @@
 package com.portfoliotracker.price;
 
+import com.portfoliotracker.common.SymbolNormalizer;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -27,4 +28,15 @@ public class PriceSnapshot {
 
     @Column(name = "fetched_at", nullable = false)
     private Instant fetchedAt;
+
+    /**
+     * Defense-in-depth: PriceService.fetchAndStore already normalizes before saving, but any
+     * future direct save bypassing the service must not be able to write a non-canonical
+     * symbol either.
+     */
+    @PrePersist
+    @PreUpdate
+    private void normalizeSymbol() {
+        symbol = SymbolNormalizer.normalize(symbol);
+    }
 }

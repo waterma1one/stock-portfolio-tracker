@@ -1,5 +1,6 @@
 package com.portfoliotracker.price;
 
+import com.portfoliotracker.common.SymbolNormalizer;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -17,9 +18,10 @@ public class PriceService {
     }
 
     public void fetchAndStore(String symbol) {
-        priceProvider.getPrice(symbol).ifPresent(price -> {
+        String normalized = SymbolNormalizer.normalize(symbol);
+        priceProvider.getPrice(normalized).ifPresent(price -> {
             PriceSnapshot snapshot = new PriceSnapshot();
-            snapshot.setSymbol(symbol);
+            snapshot.setSymbol(normalized);
             snapshot.setPrice(price);
             snapshot.setFetchedAt(Instant.now());
             priceSnapshotRepository.save(snapshot);
@@ -27,6 +29,6 @@ public class PriceService {
     }
 
     public Optional<PriceSnapshot> getLatest(String symbol) {
-        return priceSnapshotRepository.findTopBySymbolOrderByFetchedAtDesc(symbol.trim().toUpperCase());
+        return priceSnapshotRepository.findTopBySymbolOrderByFetchedAtDesc(SymbolNormalizer.normalize(symbol));
     }
 }

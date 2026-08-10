@@ -44,6 +44,17 @@ class PriceServiceTest {
     }
 
     @Test
+    void fetchAndStoreNormalizesSymbolBeforeCallingProviderAndBeforeSaving() {
+        PriceService service = new PriceService(priceProvider, priceSnapshotRepository);
+        when(priceProvider.getPrice("AAPL")).thenReturn(Optional.of(new BigDecimal("151.12")));
+
+        service.fetchAndStore("  aapl  ");
+
+        verify(priceProvider).getPrice("AAPL");
+        verify(priceSnapshotRepository).save(argThatMatchesAaplSnapshot());
+    }
+
+    @Test
     void getLatestDelegatesToRepository() {
         PriceService service = new PriceService(priceProvider, priceSnapshotRepository);
         PriceSnapshot snapshot = new PriceSnapshot();
