@@ -26,6 +26,9 @@ class PortfolioControllerIntegrationTest {
     @Autowired
     TestRestTemplate restTemplate;
 
+    @Autowired
+    com.portfoliotracker.price.PriceSnapshotRepository priceSnapshotRepository;
+
     @Test
     void createAndListPortfolio() {
         ResponseEntity<PortfolioResponse> createResp = restTemplate.postForEntity(
@@ -98,5 +101,59 @@ class PortfolioControllerIntegrationTest {
                 "/api/portfolios/999999999/holdings", String.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void holdingsIncludeLiveValuationWhenPriceSnapshotExists() {
+        ResponseEntity<PortfolioResponse> createResp = restTemplate.postForEntity(
+                "/api/portfolios", new CreatePortfolioRequest("Valuation Test"), PortfolioResponse.class);
+        Long portfolioId = createResp.getBody().id();
+
+        restTemplate.postForEntity(
+                "/api/portfolios/" + portfolioId + "/transactions",
+                new com.portfoliotracker.transaction.dto.CreateTransactionRequest(
+                        "AAPL", com.portfoliotracker.transaction.TransactionType.BUY,
+                        new java.math.BigDecimal("10"), new java.math.BigDecimal("100.00"), java.time.Instant.now()),
+                com.portfoliotracker.transaction.dto.TransactionResponse.class);
+
+        com.portfoliotracker.price.PriceSnapshot snapshot = new com.portfoliotracker.price.PriceSnapshot();
+        snapshot.setSymbol("AAPL");
+        snapshot.setPrice(new java.math.BigDecimal("150.00"));
+        snapshot.setFetchedAt(java.time.Instant.now());
+        priceSnapshotRepository.save(snapshot);
+
+        ResponseEntity<com.portfoliotracker.holding.dto.HoldingResponse[]> holdingsResp = restTemplate.getForEntity(
+                "/api/portfolios/" + portfolioId + "/holdings",
+                com.portfoliotracker.holding.dto.HoldingResponse[].class);
+
+        assertThat(holdingsResp.getBody()).hasSize(1);
+        com.portfoliotracker.holding.dto.HoldingResponse holding = holdingsResp.getBody()[0];
+        assertThat(holding.currentPrice()).isEqualByComparingTo("150.00");
+        assertThat(holding.marketValue()).isEqualByComparingTo("1500.00");
+        assertThat(holding.unrealizedPnl()).isEqualByComparingTo("500.00");
+    }
+
+    @Test
+    void holdingsShowNullValuationWhenNoPriceSnapshotExists() {
+        ResponseEntity<PortfolioResponse> createResp = restTemplate.postForEntity(
+                "/api/portfolios", new CreatePortfolioRequest("No Price Test"), PortfolioResponse.class);
+        Long portfolioId = createResp.getBody().id();
+
+        restTemplate.postForEntity(
+                "/api/portfolios/" + portfolioId + "/transactions",
+                new com.portfoliotracker.transaction.dto.CreateTransactionRequest(
+                        "ZZZZ", com.portfoliotracker.transaction.TransactionType.BUY,
+                        new java.math.BigDecimal("5"), new java.math.BigDecimal("10.00"), java.time.Instant.now()),
+                com.portfoliotracker.transaction.dto.TransactionResponse.class);
+
+        ResponseEntity<com.portfoliotracker.holding.dto.HoldingResponse[]> holdingsResp = restTemplate.getForEntity(
+                "/api/portfolios/" + portfolioId + "/holdings",
+                com.portfoliotracker.holding.dto.HoldingResponse[].class);
+
+        assertThat(holdingsResp.getBody()).hasSize(1);
+        com.portfoliotracker.holding.dto.HoldingResponse holding = holdingsResp.getBody()[0];
+        assertThat(holding.currentPrice()).isNull();
+        assertThat(holding.marketValue()).isNull();
+        assertThat(holding.unrealizedPnl()).isNull();
     }
 }
