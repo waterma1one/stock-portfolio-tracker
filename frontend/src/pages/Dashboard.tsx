@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { PortfolioList } from '../components/PortfolioList';
 import { HoldingsTable } from '../components/HoldingsTable';
+import { PortfolioSummary } from '../components/PortfolioSummary';
 import { TransactionForm } from '../components/TransactionForm';
 import { TransactionList } from '../components/TransactionList';
 import {
@@ -81,6 +82,7 @@ export function Dashboard() {
         ) : (
           <>
             <h1 className="text-xl font-semibold mb-4">Holdings</h1>
+            <PortfolioSummary holdings={holdings} />
             <HoldingsTable holdings={holdings} />
             <h1 className="text-xl font-semibold mb-2">Transactions</h1>
             <TransactionForm onSubmit={handleAddTransaction} />
