@@ -131,6 +131,39 @@ class PortfolioControllerIntegrationTest {
         assertThat(holding.currentPrice()).isEqualByComparingTo("150.00");
         assertThat(holding.marketValue()).isEqualByComparingTo("1500.00");
         assertThat(holding.unrealizedPnl()).isEqualByComparingTo("500.00");
+        // isEqualByComparingTo() ignores scale, so also pin the wire-format precision directly --
+        // this is what let the marketValue/unrealizedPnl scale-8 bug ship unnoticed before.
+        assertThat(holding.marketValue().scale()).isEqualTo(4);
+        assertThat(holding.unrealizedPnl().scale()).isEqualTo(4);
+    }
+
+    @Test
+    void transactionsWithDifferingSymbolCaseMergeIntoOneHolding() {
+        ResponseEntity<PortfolioResponse> createResp = restTemplate.postForEntity(
+                "/api/portfolios", new CreatePortfolioRequest("Case Merge Test"), PortfolioResponse.class);
+        Long portfolioId = createResp.getBody().id();
+
+        restTemplate.postForEntity(
+                "/api/portfolios/" + portfolioId + "/transactions",
+                new com.portfoliotracker.transaction.dto.CreateTransactionRequest(
+                        "AAPL", com.portfoliotracker.transaction.TransactionType.BUY,
+                        new java.math.BigDecimal("10"), new java.math.BigDecimal("100.00"), java.time.Instant.now()),
+                com.portfoliotracker.transaction.dto.TransactionResponse.class);
+
+        restTemplate.postForEntity(
+                "/api/portfolios/" + portfolioId + "/transactions",
+                new com.portfoliotracker.transaction.dto.CreateTransactionRequest(
+                        "  aapl  ", com.portfoliotracker.transaction.TransactionType.BUY,
+                        new java.math.BigDecimal("3"), new java.math.BigDecimal("140.00"), java.time.Instant.now()),
+                com.portfoliotracker.transaction.dto.TransactionResponse.class);
+
+        ResponseEntity<com.portfoliotracker.holding.dto.HoldingResponse[]> holdingsResp = restTemplate.getForEntity(
+                "/api/portfolios/" + portfolioId + "/holdings",
+                com.portfoliotracker.holding.dto.HoldingResponse[].class);
+
+        assertThat(holdingsResp.getBody()).hasSize(1);
+        assertThat(holdingsResp.getBody()[0].symbol()).isEqualTo("AAPL");
+        assertThat(holdingsResp.getBody()[0].quantity()).isEqualByComparingTo("13");
     }
 
     @Test
