@@ -6,11 +6,13 @@ import { TransactionForm } from '../components/TransactionForm';
 import { TransactionList } from '../components/TransactionList';
 import { AllocationChart } from '../components/AllocationChart';
 import { PerformanceChart } from '../components/PerformanceChart';
+import { PnlBreakdown } from '../components/PnlBreakdown';
+import { getPnl } from '../api/portfolios';
 import {
   getPortfolios, createPortfolio, getHoldings, getTransactions,
   createTransaction, deleteTransaction, getAllocation, getPerformance,
 } from '../api/portfolios';
-import type { Portfolio, Holding, Transaction, CreateTransactionInput, SectorAllocation, PerformancePoint } from '../types/portfolio';
+import type { Portfolio, Holding, Transaction, CreateTransactionInput, SectorAllocation, PerformancePoint, PnlResponse } from '../types/portfolio';
 
 export function Dashboard() {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -19,6 +21,7 @@ export function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [sectors, setSectors] = useState<SectorAllocation[]>([]);
   const [performance, setPerformance] = useState<PerformancePoint[]>([]);
+  const [pnl, setPnl] = useState<PnlResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,6 +39,7 @@ export function Dashboard() {
     getTransactions(selectedId).then(setTransactions).catch((e) => setError(e.message));
     getAllocation(selectedId).then((r) => setSectors(r.sectors)).catch((e) => setError(e.message));
     getPerformance(selectedId).then((r) => setPerformance(r.points)).catch((e) => setError(e.message));
+    getPnl(selectedId).then(setPnl).catch((e) => setError(e.message));
   }, [selectedId]);
 
   const handleCreatePortfolio = async (name: string) => {
@@ -91,6 +95,7 @@ export function Dashboard() {
             <PortfolioSummary holdings={holdings} />
             <AllocationChart sectors={sectors} />
             <PerformanceChart points={performance} />
+            <PnlBreakdown pnl={pnl} />
             <HoldingsTable holdings={holdings} />
             <h1 className="text-xl font-semibold mb-2">Transactions</h1>
             <TransactionForm onSubmit={handleAddTransaction} />
