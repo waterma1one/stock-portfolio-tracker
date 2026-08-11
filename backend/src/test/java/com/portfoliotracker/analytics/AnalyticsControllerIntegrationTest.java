@@ -122,6 +122,41 @@ class AnalyticsControllerIntegrationTest {
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    @Test
+    void pnlReturnsRealizedAndUnrealizedGainSummary() {
+        ResponseEntity<PortfolioResponse> createResp = restTemplate.postForEntity(
+                "/api/portfolios", new CreatePortfolioRequest("Pnl Test"), PortfolioResponse.class);
+        Long portfolioId = createResp.getBody().id();
+
+        restTemplate.postForEntity(
+                "/api/portfolios/" + portfolioId + "/transactions",
+                new com.portfoliotracker.transaction.dto.CreateTransactionRequest(
+                        "AAPL", com.portfoliotracker.transaction.TransactionType.BUY,
+                        new BigDecimal("10"), new BigDecimal("100.00"), Instant.now()),
+                com.portfoliotracker.transaction.dto.TransactionResponse.class);
+        restTemplate.postForEntity(
+                "/api/portfolios/" + portfolioId + "/transactions",
+                new com.portfoliotracker.transaction.dto.CreateTransactionRequest(
+                        "AAPL", com.portfoliotracker.transaction.TransactionType.SELL,
+                        new BigDecimal("4"), new BigDecimal("150.00"), Instant.now()),
+                com.portfoliotracker.transaction.dto.TransactionResponse.class);
+
+        com.portfoliotracker.price.PriceSnapshot snapshot = new com.portfoliotracker.price.PriceSnapshot();
+        snapshot.setSymbol("AAPL");
+        snapshot.setPrice(new BigDecimal("120.00"));
+        snapshot.setFetchedAt(Instant.now());
+        priceSnapshotRepository.save(snapshot);
+
+        ResponseEntity<com.portfoliotracker.analytics.dto.PnlResponse> resp = restTemplate.getForEntity(
+                "/api/portfolios/" + portfolioId + "/analytics/pnl",
+                com.portfoliotracker.analytics.dto.PnlResponse.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        // realized: (150-100)*4 = 200. remaining 6 @ avg cost 100, unrealized: (120-100)*6 = 120
+        assertThat(resp.getBody().realizedPnl()).isEqualByComparingTo("200.0000");
+        assertThat(resp.getBody().unrealizedPnl()).isEqualByComparingTo("120.0000");
+    }
+
     private void saveHistory(String symbol, java.time.LocalDate date, String close) {
         com.portfoliotracker.pricehistory.PriceHistory row = new com.portfoliotracker.pricehistory.PriceHistory();
         row.setSymbol(symbol);

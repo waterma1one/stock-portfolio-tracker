@@ -2,6 +2,7 @@ package com.portfoliotracker.analytics;
 
 import com.portfoliotracker.analytics.dto.AllocationResponse;
 import com.portfoliotracker.analytics.dto.PerformanceResponse;
+import com.portfoliotracker.analytics.dto.PnlResponse;
 import com.portfoliotracker.holding.Holding;
 import com.portfoliotracker.holding.HoldingCalculator;
 import com.portfoliotracker.portfolio.PortfolioRepository;
@@ -64,6 +65,16 @@ public class AnalyticsController {
                 .collect(Collectors.toMap(symbol -> symbol, priceHistoryService::getHistory));
         List<PriceHistory> spyHistory = priceHistoryService.getHistory("SPY");
         return PerformanceCalculator.calculate(transactions, historyBySymbol, spyHistory);
+    }
+
+    @GetMapping("/pnl")
+    public PnlResponse pnl(@PathVariable Long portfolioId) {
+        if (!portfolioRepository.existsById(portfolioId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Portfolio not found: " + portfolioId);
+        }
+        List<Transaction> transactions = transactionRepository.findByPortfolioIdOrderByExecutedAtAsc(portfolioId);
+        return PnlCalculator.calculate(transactions,
+                symbol -> priceService.getLatest(symbol).map(com.portfoliotracker.price.PriceSnapshot::getPrice));
     }
 
     private List<Holding> holdingsFor(Long portfolioId) {
