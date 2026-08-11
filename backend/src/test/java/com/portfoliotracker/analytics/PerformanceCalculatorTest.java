@@ -95,4 +95,52 @@ class PerformanceCalculatorTest {
 
         assertThat(response.points()).isEmpty();
     }
+
+    @Test
+    void unsyncedHoldingContributesZeroWhileOtherHoldingsStillCount() {
+        LocalDate d1 = LocalDate.of(2026, 1, 1);
+        LocalDate d2 = LocalDate.of(2026, 1, 2);
+
+        List<Transaction> transactions = List.of(
+                buy("AAPL", "10", "100.00", d1),
+                buy("MSFT", "5", "200.00", d1));
+        // MSFT is held but absent from historyBySymbol entirely -- freshly polled, never synced.
+        // It must contribute 0 rather than throwing or falling back to its cost basis.
+        Map<String, List<PriceHistory>> historyBySymbol = Map.of(
+                "AAPL", List.of(row("AAPL", d1, "100.00"), row("AAPL", d2, "110.00")));
+        List<PriceHistory> spyHistory = List.of(row("SPY", d1, "500.00"), row("SPY", d2, "510.00"));
+
+        PerformanceResponse response = PerformanceCalculator.calculate(transactions, historyBySymbol, spyHistory);
+
+        assertThat(response.points()).hasSize(2);
+        assertThat(response.points().get(0).portfolioChangePercent()).isEqualByComparingTo("0");
+        // Portfolio value is AAPL-only: 1000 -> 1100 = +10%. Had MSFT been priced at its 200.00
+        // cost basis instead of skipped, both dates would carry a flat +1000 and this would read +5%.
+        assertThat(response.points().get(1).portfolioChangePercent()).isEqualByComparingTo("10.0000");
+        assertThat(response.points().get(1).spyChangePercent()).isEqualByComparingTo("2.0000");
+    }
+
+    @Test
+    void spyBaselineIsCloseOnPortfolioFundedDayNotEarliestSpyDate() {
+        LocalDate before = LocalDate.of(2025, 12, 31);
+        LocalDate funded = LocalDate.of(2026, 1, 1);
+        LocalDate later = LocalDate.of(2026, 1, 2);
+
+        List<Transaction> transactions = List.of(buy("AAPL", "10", "100.00", funded));
+        Map<String, List<PriceHistory>> historyBySymbol = Map.of(
+                "AAPL", List.of(row("AAPL", funded, "100.00"), row("AAPL", later, "110.00")));
+        // SPY starts a day before the portfolio is funded, so the baseline row is *not* the first one.
+        List<PriceHistory> spyHistory = List.of(
+                row("SPY", before, "500.00"), row("SPY", funded, "505.00"), row("SPY", later, "606.00"));
+
+        PerformanceResponse response = PerformanceCalculator.calculate(transactions, historyBySymbol, spyHistory);
+
+        assertThat(response.points()).hasSize(2);
+        assertThat(response.points().get(0).date()).isEqualTo(funded);
+        assertThat(response.points().get(0).spyChangePercent()).isEqualByComparingTo("0");
+        assertThat(response.points().get(1).portfolioChangePercent()).isEqualByComparingTo("10.0000");
+        // SPY 505 (funded day) -> 606 = +20%. Baselining off SPY's earliest date (500.00) would
+        // instead yield +21.2%, so this pins the baseline to the funded day specifically.
+        assertThat(response.points().get(1).spyChangePercent()).isEqualByComparingTo("20.0000");
+    }
 }

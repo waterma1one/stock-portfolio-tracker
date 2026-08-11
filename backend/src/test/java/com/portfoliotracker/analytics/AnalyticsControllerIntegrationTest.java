@@ -114,6 +114,14 @@ class AnalyticsControllerIntegrationTest {
         assertThat(resp.getBody().points().get(1).spyChangePercent()).isEqualByComparingTo("2.0000");
     }
 
+    @Test
+    void performanceForNonexistentPortfolioReturns404() {
+        ResponseEntity<String> resp = restTemplate.getForEntity(
+                "/api/portfolios/999999999/analytics/performance", String.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
     private void saveHistory(String symbol, java.time.LocalDate date, String close) {
         com.portfoliotracker.pricehistory.PriceHistory row = new com.portfoliotracker.pricehistory.PriceHistory();
         row.setSymbol(symbol);
