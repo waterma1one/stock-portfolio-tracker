@@ -46,6 +46,7 @@ public class PerformanceCalculator {
                     .filter(tx -> !tx.getExecutedAt().atZone(ZoneOffset.UTC).toLocalDate().isAfter(date))
                     .toList();
             BigDecimal portfolioValue = portfolioValueAsOf(asOfDate, historyBySymbol, date);
+            BigDecimal spyClose = closeOnOrBefore(spyHistory, date);
 
             if (baselinePortfolioValue == null) {
                 // Dates before the portfolio holds anything are dropped entirely: a 0-value portfolio
@@ -56,10 +57,9 @@ public class PerformanceCalculator {
                 baselinePortfolioValue = portfolioValue;
                 // SPY's baseline is deliberately its close on the *portfolio's* first funded day, not
                 // SPY's own earliest date. Both series therefore read 0% on the same row.
-                baselineSpyClose = closeOnOrBefore(spyHistory, date);
+                baselineSpyClose = spyClose;
             }
 
-            BigDecimal spyClose = closeOnOrBefore(spyHistory, date);
             BigDecimal portfolioChangePercent = percentChange(baselinePortfolioValue, portfolioValue);
             BigDecimal spyChangePercent = percentChange(baselineSpyClose, spyClose);
 
