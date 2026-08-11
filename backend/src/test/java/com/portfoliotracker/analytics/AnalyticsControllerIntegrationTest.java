@@ -35,6 +35,9 @@ class AnalyticsControllerIntegrationTest {
     @Autowired
     com.portfoliotracker.symbolprofile.SymbolProfileRepository symbolProfileRepository;
 
+    @Autowired
+    com.portfoliotracker.pricehistory.PriceHistoryRepository priceHistoryRepository;
+
     @Test
     void allocationGroupsHoldingsBySectorWithPricesAndProfilesCached() {
         ResponseEntity<PortfolioResponse> createResp = restTemplate.postForEntity(
@@ -77,5 +80,45 @@ class AnalyticsControllerIntegrationTest {
                 "/api/portfolios/999999999/analytics/allocation", String.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void performanceReturnsPercentChangeSeriesRelativeToSpy() {
+        ResponseEntity<PortfolioResponse> createResp = restTemplate.postForEntity(
+                "/api/portfolios", new CreatePortfolioRequest("Performance Test"), PortfolioResponse.class);
+        Long portfolioId = createResp.getBody().id();
+
+        java.time.LocalDate day1 = java.time.LocalDate.of(2026, 1, 1);
+        java.time.LocalDate day2 = java.time.LocalDate.of(2026, 1, 2);
+
+        restTemplate.postForEntity(
+                "/api/portfolios/" + portfolioId + "/transactions",
+                new com.portfoliotracker.transaction.dto.CreateTransactionRequest(
+                        "AAPL", com.portfoliotracker.transaction.TransactionType.BUY,
+                        new BigDecimal("10"), new BigDecimal("100.00"),
+                        day1.atStartOfDay(java.time.ZoneOffset.UTC).toInstant()),
+                com.portfoliotracker.transaction.dto.TransactionResponse.class);
+
+        saveHistory("AAPL", day1, "100.00");
+        saveHistory("AAPL", day2, "110.00");
+        saveHistory("SPY", day1, "500.00");
+        saveHistory("SPY", day2, "510.00");
+
+        ResponseEntity<com.portfoliotracker.analytics.dto.PerformanceResponse> resp = restTemplate.getForEntity(
+                "/api/portfolios/" + portfolioId + "/analytics/performance",
+                com.portfoliotracker.analytics.dto.PerformanceResponse.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody().points()).hasSize(2);
+        assertThat(resp.getBody().points().get(1).portfolioChangePercent()).isEqualByComparingTo("10.0000");
+        assertThat(resp.getBody().points().get(1).spyChangePercent()).isEqualByComparingTo("2.0000");
+    }
+
+    private void saveHistory(String symbol, java.time.LocalDate date, String close) {
+        com.portfoliotracker.pricehistory.PriceHistory row = new com.portfoliotracker.pricehistory.PriceHistory();
+        row.setSymbol(symbol);
+        row.setPriceDate(date);
+        row.setClose(new BigDecimal(close));
+        priceHistoryRepository.save(row);
     }
 }
