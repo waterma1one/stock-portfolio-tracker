@@ -4,17 +4,19 @@ import { HoldingsTable } from '../components/HoldingsTable';
 import { PortfolioSummary } from '../components/PortfolioSummary';
 import { TransactionForm } from '../components/TransactionForm';
 import { TransactionList } from '../components/TransactionList';
+import { AllocationChart } from '../components/AllocationChart';
 import {
   getPortfolios, createPortfolio, getHoldings, getTransactions,
-  createTransaction, deleteTransaction,
+  createTransaction, deleteTransaction, getAllocation,
 } from '../api/portfolios';
-import type { Portfolio, Holding, Transaction, CreateTransactionInput } from '../types/portfolio';
+import type { Portfolio, Holding, Transaction, CreateTransactionInput, SectorAllocation } from '../types/portfolio';
 
 export function Dashboard() {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [sectors, setSectors] = useState<SectorAllocation[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,6 +32,7 @@ export function Dashboard() {
     if (selectedId === null) return;
     getHoldings(selectedId).then(setHoldings).catch((e) => setError(e.message));
     getTransactions(selectedId).then(setTransactions).catch((e) => setError(e.message));
+    getAllocation(selectedId).then((r) => setSectors(r.sectors)).catch((e) => setError(e.message));
   }, [selectedId]);
 
   const handleCreatePortfolio = async (name: string) => {
@@ -83,6 +86,7 @@ export function Dashboard() {
           <>
             <h1 className="text-xl font-semibold mb-4">Holdings</h1>
             <PortfolioSummary holdings={holdings} />
+            <AllocationChart sectors={sectors} />
             <HoldingsTable holdings={holdings} />
             <h1 className="text-xl font-semibold mb-2">Transactions</h1>
             <TransactionForm onSubmit={handleAddTransaction} />
