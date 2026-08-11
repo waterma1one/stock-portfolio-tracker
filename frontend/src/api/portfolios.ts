@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { Portfolio, Holding, Transaction, CreateTransactionInput, AllocationResponse } from '../types/portfolio';
+import type { Portfolio, Holding, Transaction, CreateTransactionInput, AllocationResponse, PerformanceResponse } from '../types/portfolio';
 
 export const getPortfolios = () => apiFetch<Portfolio[]>('/api/portfolios');
 
@@ -23,3 +23,6 @@ export const deleteTransaction = (transactionId: number) =>
 
 export const getAllocation = (portfolioId: number) =>
   apiFetch<AllocationResponse>(`/api/portfolios/${portfolioId}/analytics/allocation`);
+
+export const getPerformance = (portfolioId: number) =>
+  apiFetch<PerformanceResponse>(`/api/portfolios/${portfolioId}/analytics/performance`);
