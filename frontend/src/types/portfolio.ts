@@ -42,3 +42,13 @@ export interface SectorAllocation {
 export interface AllocationResponse {
   sectors: SectorAllocation[];
 }
+
+export interface PerformancePoint {
+  date: string;
+  portfolioChangePercent: number;
+  spyChangePercent: number;
+}
+
+export interface PerformanceResponse {
+  points: PerformancePoint[];
+}
