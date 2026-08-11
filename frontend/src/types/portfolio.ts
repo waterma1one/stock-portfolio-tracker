@@ -32,3 +32,13 @@ export interface CreateTransactionInput {
   price: number;
   executedAt: string;
 }
+
+export interface SectorAllocation {
+  sector: string;
+  marketValue: number;
+  percent: number;
+}
+
+export interface AllocationResponse {
+  sectors: SectorAllocation[];
+}
