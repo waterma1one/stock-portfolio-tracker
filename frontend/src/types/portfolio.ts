@@ -52,3 +52,8 @@ export interface PerformancePoint {
 export interface PerformanceResponse {
   points: PerformancePoint[];
 }
+
+export interface PnlResponse {
+  realizedPnl: number;
+  unrealizedPnl: number;
+}
