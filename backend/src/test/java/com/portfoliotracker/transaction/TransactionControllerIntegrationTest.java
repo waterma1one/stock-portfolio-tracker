@@ -79,4 +79,20 @@ class TransactionControllerIntegrationTest {
 
         assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
+
+    @Test
+    void oversizedSymbolReturns400NotServerError() {
+        Portfolio portfolio = new Portfolio();
+        portfolio.setName("Bad Symbol Test");
+        portfolio.setCreatedAt(Instant.now());
+        portfolio = portfolioRepository.save(portfolio);
+
+        CreateTransactionRequest request = new CreateTransactionRequest(
+                "A".repeat(300), TransactionType.BUY, new BigDecimal("1"), new BigDecimal("100.00"), Instant.now());
+
+        ResponseEntity<String> resp = restTemplate.postForEntity(
+                "/api/portfolios/" + portfolio.getId() + "/transactions", request, String.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
 }

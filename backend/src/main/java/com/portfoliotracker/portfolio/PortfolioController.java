@@ -2,6 +2,7 @@ package com.portfoliotracker.portfolio;
 
 import com.portfoliotracker.portfolio.dto.CreatePortfolioRequest;
 import com.portfoliotracker.portfolio.dto.PortfolioResponse;
+import com.portfoliotracker.price.PriceService;
 import com.portfoliotracker.transaction.TransactionRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -17,13 +18,16 @@ public class PortfolioController {
     private final PortfolioService portfolioService;
     private final PortfolioRepository portfolioRepository;
     private final TransactionRepository transactionRepository;
+    private final PriceService priceService;
 
     public PortfolioController(PortfolioService portfolioService,
                                 PortfolioRepository portfolioRepository,
-                                TransactionRepository transactionRepository) {
+                                TransactionRepository transactionRepository,
+                                PriceService priceService) {
         this.portfolioService = portfolioService;
         this.portfolioRepository = portfolioRepository;
         this.transactionRepository = transactionRepository;
+        this.priceService = priceService;
     }
 
     @GetMapping
@@ -45,7 +49,7 @@ public class PortfolioController {
         List<com.portfoliotracker.transaction.Transaction> txs =
                 transactionRepository.findByPortfolioIdOrderByExecutedAtAsc(portfolioId);
         return com.portfoliotracker.holding.HoldingCalculator.calculate(txs).stream()
-                .map(com.portfoliotracker.holding.dto.HoldingResponse::from)
+                .map(h -> com.portfoliotracker.holding.dto.HoldingResponse.from(h, priceService.getLatest(h.symbol())))
                 .toList();
     }
 }
