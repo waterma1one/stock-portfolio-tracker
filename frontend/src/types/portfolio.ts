@@ -8,6 +8,9 @@ export interface Holding {
   symbol: string;
   quantity: number;
   avgCostBasis: number;
+  currentPrice: number | null;
+  marketValue: number | null;
+  unrealizedPnl: number | null;
 }
 
 export type TransactionType = 'BUY' | 'SELL';
@@ -28,4 +31,29 @@ export interface CreateTransactionInput {
   quantity: number;
   price: number;
   executedAt: string;
+}
+
+export interface SectorAllocation {
+  sector: string;
+  marketValue: number;
+  percent: number;
+}
+
+export interface AllocationResponse {
+  sectors: SectorAllocation[];
+}
+
+export interface PerformancePoint {
+  date: string;
+  portfolioChangePercent: number;
+  spyChangePercent: number;
+}
+
+export interface PerformanceResponse {
+  points: PerformancePoint[];
+}
+
+export interface PnlResponse {
+  realizedPnl: number;
+  unrealizedPnl: number;
 }

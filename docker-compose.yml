@@ -20,6 +20,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/portfolio_tracker
       SPRING_DATASOURCE_USERNAME: portfolio
       SPRING_DATASOURCE_PASSWORD: portfolio
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-demo}
 
   frontend:
     build: ./frontend

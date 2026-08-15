@@ -76,4 +76,47 @@ class HoldingCalculatorTest {
 
         assertThat(holdings).extracting(Holding::symbol).containsExactlyInAnyOrder("AAPL", "MSFT");
     }
+
+    @Test
+    void calculateRealizedPnlAccruesOnSellAtAverageCostBasis() {
+        List<Transaction> txs = List.of(
+                Transaction.of("AAPL", TransactionType.BUY, new BigDecimal("10"), new BigDecimal("100.00"), Instant.parse("2026-01-01T00:00:00Z")),
+                Transaction.of("AAPL", TransactionType.SELL, new BigDecimal("4"), new BigDecimal("150.00"), Instant.parse("2026-02-01T00:00:00Z")));
+
+        BigDecimal realizedPnl = HoldingCalculator.calculateRealizedPnl(txs);
+
+        // avg cost 100.00, sold 4 @ 150.00 -> realized gain = (150-100)*4 = 200
+        assertThat(realizedPnl).isEqualByComparingTo("200");
+    }
+
+    @Test
+    void calculateRealizedPnlAccumulatesAcrossMultipleSellsAndSymbols() {
+        List<Transaction> txs = List.of(
+                Transaction.of("AAPL", TransactionType.BUY, new BigDecimal("10"), new BigDecimal("100.00"), Instant.parse("2026-01-01T00:00:00Z")),
+                Transaction.of("AAPL", TransactionType.SELL, new BigDecimal("5"), new BigDecimal("120.00"), Instant.parse("2026-01-02T00:00:00Z")),
+                Transaction.of("MSFT", TransactionType.BUY, new BigDecimal("4"), new BigDecimal("300.00"), Instant.parse("2026-01-03T00:00:00Z")),
+                Transaction.of("MSFT", TransactionType.SELL, new BigDecimal("2"), new BigDecimal("250.00"), Instant.parse("2026-01-04T00:00:00Z")));
+
+        BigDecimal realizedPnl = HoldingCalculator.calculateRealizedPnl(txs);
+
+        // AAPL: (120-100)*5 = 100. MSFT: (250-300)*2 = -100. Total = 0
+        assertThat(realizedPnl).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void calculateRealizedPnlIsZeroWhenNoSellsHaveOccurred() {
+        List<Transaction> txs = List.of(
+                Transaction.of("AAPL", TransactionType.BUY, new BigDecimal("10"), new BigDecimal("100.00"), Instant.now()));
+
+        BigDecimal realizedPnl = HoldingCalculator.calculateRealizedPnl(txs);
+
+        assertThat(realizedPnl).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void calculateRealizedPnlIsZeroForEmptyTransactionList() {
+        BigDecimal realizedPnl = HoldingCalculator.calculateRealizedPnl(List.of());
+
+        assertThat(realizedPnl).isEqualByComparingTo("0");
+    }
 }

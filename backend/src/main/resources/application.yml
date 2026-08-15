@@ -14,3 +14,10 @@ spring:
 
 server:
   port: 8080
+
+finnhub:
+  base-url: https://finnhub.io/api/v1
+  api-key: ${FINNHUB_API_KEY:demo}
+  poll-interval-ms: 60000
+  daily-sync-interval-ms: 86400000
+  history-lookback-days: 365
