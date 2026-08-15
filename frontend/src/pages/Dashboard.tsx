@@ -55,6 +55,9 @@ export function Dashboard() {
   const refresh = async (portfolioId: number) => {
     setHoldings(await getHoldings(portfolioId));
     setTransactions(await getTransactions(portfolioId));
+    setSectors((await getAllocation(portfolioId)).sectors);
+    setPerformance((await getPerformance(portfolioId)).points);
+    setPnl(await getPnl(portfolioId));
   };
 
   const handleAddTransaction = async (input: CreateTransactionInput) => {
