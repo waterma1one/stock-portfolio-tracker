@@ -1,5 +1,6 @@
 package com.portfoliotracker.symbolprofile;
 
+import com.portfoliotracker.common.SymbolNormalizer;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -17,12 +18,13 @@ public class SymbolProfileService {
     }
 
     public void ensureCached(String symbol) {
-        if (symbolProfileRepository.findBySymbol(symbol).isPresent()) {
+        String normalized = SymbolNormalizer.normalize(symbol);
+        if (symbolProfileRepository.findBySymbol(normalized).isPresent()) {
             return;
         }
-        symbolProfileProvider.getProfile(symbol).ifPresent(data -> {
+        symbolProfileProvider.getProfile(normalized).ifPresent(data -> {
             SymbolProfile profile = new SymbolProfile();
-            profile.setSymbol(symbol);
+            profile.setSymbol(normalized);
             profile.setSector(data.sector());
             profile.setName(data.name());
             profile.setFetchedAt(Instant.now());
@@ -31,6 +33,6 @@ public class SymbolProfileService {
     }
 
     public Optional<SymbolProfile> getProfile(String symbol) {
-        return symbolProfileRepository.findBySymbol(symbol);
+        return symbolProfileRepository.findBySymbol(SymbolNormalizer.normalize(symbol));
     }
 }

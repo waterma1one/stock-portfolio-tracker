@@ -55,9 +55,7 @@ public class AnalyticsController {
 
     @GetMapping("/performance")
     public PerformanceResponse performance(@PathVariable Long portfolioId) {
-        if (!portfolioRepository.existsById(portfolioId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Portfolio not found: " + portfolioId);
-        }
+        requirePortfolioExists(portfolioId);
         List<Transaction> transactions = transactionRepository.findByPortfolioIdOrderByExecutedAtAsc(portfolioId);
         Map<String, List<PriceHistory>> historyBySymbol = transactions.stream()
                 .map(Transaction::getSymbol)
@@ -69,19 +67,21 @@ public class AnalyticsController {
 
     @GetMapping("/pnl")
     public PnlResponse pnl(@PathVariable Long portfolioId) {
-        if (!portfolioRepository.existsById(portfolioId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Portfolio not found: " + portfolioId);
-        }
+        requirePortfolioExists(portfolioId);
         List<Transaction> transactions = transactionRepository.findByPortfolioIdOrderByExecutedAtAsc(portfolioId);
         return PnlCalculator.calculate(transactions,
                 symbol -> priceService.getLatest(symbol).map(com.portfoliotracker.price.PriceSnapshot::getPrice));
     }
 
     private List<Holding> holdingsFor(Long portfolioId) {
+        requirePortfolioExists(portfolioId);
+        List<Transaction> txs = transactionRepository.findByPortfolioIdOrderByExecutedAtAsc(portfolioId);
+        return HoldingCalculator.calculate(txs);
+    }
+
+    private void requirePortfolioExists(Long portfolioId) {
         if (!portfolioRepository.existsById(portfolioId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Portfolio not found: " + portfolioId);
         }
-        List<Transaction> txs = transactionRepository.findByPortfolioIdOrderByExecutedAtAsc(portfolioId);
-        return HoldingCalculator.calculate(txs);
     }
 }

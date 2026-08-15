@@ -2,6 +2,7 @@ package com.portfoliotracker.pricehistory;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,8 +33,12 @@ class PriceHistoryServiceTest {
 
         service.refresh("AAPL", from, to);
 
-        verify(priceHistoryRepository).deleteBySymbol("AAPL");
-        verify(priceHistoryRepository).saveAll(argThat((Iterable<PriceHistory> rows) -> {
+        // the delete must be flushed before the re-insert, otherwise Hibernate orders the
+        // inserts first and they collide on the (symbol, price_date) unique constraint
+        InOrder inOrder = inOrder(priceHistoryRepository);
+        inOrder.verify(priceHistoryRepository).deleteBySymbol("AAPL");
+        inOrder.verify(priceHistoryRepository).flush();
+        inOrder.verify(priceHistoryRepository).saveAll(argThat((Iterable<PriceHistory> rows) -> {
             List<PriceHistory> list = new java.util.ArrayList<>();
             rows.forEach(list::add);
             return list.size() == 2 && list.get(0).getSymbol().equals("AAPL");
