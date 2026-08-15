@@ -58,6 +58,31 @@ class SymbolProfileServiceTest {
     }
 
     @Test
+    void ensureCachedNormalizesSymbolBeforeLookupProviderCallAndSave() {
+        SymbolProfileService service = new SymbolProfileService(symbolProfileProvider, symbolProfileRepository);
+        when(symbolProfileRepository.findBySymbol("AAPL")).thenReturn(Optional.empty());
+        when(symbolProfileProvider.getProfile("AAPL"))
+                .thenReturn(Optional.of(new SymbolProfileData("Technology", "Apple Inc")));
+
+        service.ensureCached("  aapl  ");
+
+        verify(symbolProfileProvider).getProfile("AAPL");
+        verify(symbolProfileRepository).save(argThatMatchesAaplProfile());
+    }
+
+    @Test
+    void getProfileNormalizesSymbolBeforeLookup() {
+        SymbolProfileService service = new SymbolProfileService(symbolProfileProvider, symbolProfileRepository);
+        SymbolProfile profile = new SymbolProfile();
+        profile.setSymbol("AAPL");
+        when(symbolProfileRepository.findBySymbol("AAPL")).thenReturn(Optional.of(profile));
+
+        Optional<SymbolProfile> result = service.getProfile("  aapl  ");
+
+        assertThat(result).contains(profile);
+    }
+
+    @Test
     void getProfileDelegatesToRepository() {
         SymbolProfileService service = new SymbolProfileService(symbolProfileProvider, symbolProfileRepository);
         SymbolProfile profile = new SymbolProfile();
