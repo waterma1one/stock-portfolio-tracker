@@ -53,11 +53,18 @@ export function Dashboard() {
   };
 
   const refresh = async (portfolioId: number) => {
-    setHoldings(await getHoldings(portfolioId));
-    setTransactions(await getTransactions(portfolioId));
-    setSectors((await getAllocation(portfolioId)).sectors);
-    setPerformance((await getPerformance(portfolioId)).points);
-    setPnl(await getPnl(portfolioId));
+    const [holdingsData, transactionsData, allocationData, performanceData, pnlData] = await Promise.all([
+      getHoldings(portfolioId),
+      getTransactions(portfolioId),
+      getAllocation(portfolioId),
+      getPerformance(portfolioId),
+      getPnl(portfolioId),
+    ]);
+    setHoldings(holdingsData);
+    setTransactions(transactionsData);
+    setSectors(allocationData.sectors);
+    setPerformance(performanceData.points);
+    setPnl(pnlData);
   };
 
   const handleAddTransaction = async (input: CreateTransactionInput) => {
