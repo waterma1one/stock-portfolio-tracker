@@ -5,6 +5,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,9 +23,12 @@ class PriceHistoryServiceTest {
     @Mock
     PriceHistoryRepository priceHistoryRepository;
 
+    @Mock
+    PlatformTransactionManager transactionManager;
+
     @Test
     void refreshReplacesExistingHistoryForSymbol() {
-        PriceHistoryService service = new PriceHistoryService(candleProvider, priceHistoryRepository);
+        PriceHistoryService service = new PriceHistoryService(candleProvider, priceHistoryRepository, transactionManager);
         LocalDate from = LocalDate.of(2026, 1, 1);
         LocalDate to = LocalDate.of(2026, 1, 2);
         when(candleProvider.getDailyCloses("AAPL", from, to)).thenReturn(List.of(
@@ -33,11 +37,10 @@ class PriceHistoryServiceTest {
 
         service.refresh("AAPL", from, to);
 
-        // the delete must be flushed before the re-insert, otherwise Hibernate orders the
-        // inserts first and they collide on the (symbol, price_date) unique constraint
+        // the bulk delete must run before the re-insert, otherwise the IDENTITY-generated
+        // inserts land first and collide on the (symbol, price_date) unique constraint
         InOrder inOrder = inOrder(priceHistoryRepository);
         inOrder.verify(priceHistoryRepository).deleteBySymbol("AAPL");
-        inOrder.verify(priceHistoryRepository).flush();
         inOrder.verify(priceHistoryRepository).saveAll(argThat((Iterable<PriceHistory> rows) -> {
             List<PriceHistory> list = new java.util.ArrayList<>();
             rows.forEach(list::add);
@@ -47,7 +50,7 @@ class PriceHistoryServiceTest {
 
     @Test
     void refreshSkipsSaveWhenProviderReturnsNoData() {
-        PriceHistoryService service = new PriceHistoryService(candleProvider, priceHistoryRepository);
+        PriceHistoryService service = new PriceHistoryService(candleProvider, priceHistoryRepository, transactionManager);
         LocalDate from = LocalDate.of(2026, 1, 1);
         LocalDate to = LocalDate.of(2026, 1, 2);
         when(candleProvider.getDailyCloses("BADSYM", from, to)).thenReturn(List.of());
@@ -60,7 +63,7 @@ class PriceHistoryServiceTest {
 
     @Test
     void getHistoryDelegatesToRepository() {
-        PriceHistoryService service = new PriceHistoryService(candleProvider, priceHistoryRepository);
+        PriceHistoryService service = new PriceHistoryService(candleProvider, priceHistoryRepository, transactionManager);
         PriceHistory row = new PriceHistory();
         row.setSymbol("AAPL");
         when(priceHistoryRepository.findBySymbolOrderByPriceDateAsc("AAPL")).thenReturn(List.of(row));
