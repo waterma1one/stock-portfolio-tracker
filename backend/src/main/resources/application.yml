@@ -15,6 +15,9 @@ spring:
 server:
   port: 8080
 
+yahoo:
+  base-url: https://query1.finance.yahoo.com
+
 finnhub:
   base-url: https://finnhub.io/api/v1
   api-key: ${FINNHUB_API_KEY:demo}

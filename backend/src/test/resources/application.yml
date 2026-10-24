@@ -6,6 +6,9 @@ spring:
       hibernate:
         format_sql: true
 
+yahoo:
+  base-url: https://query1.finance.yahoo.com
+
 finnhub:
   base-url: https://finnhub.io/api/v1
   api-key: test-key
