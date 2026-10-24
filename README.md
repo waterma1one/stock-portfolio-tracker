@@ -15,7 +15,7 @@ No hosted demo. It runs locally with Docker Compose (see below).
 - Reports realized and unrealized P&L for a portfolio.
 - Shows sector allocation by market value, using the industry Finnhub returns for each symbol (`Unknown` when it has none).
 - Charts portfolio percent change against SPY over the cached daily price history.
-- Polls Finnhub for the latest quote of every traded symbol once a minute, and refreshes a year of daily closes and the sector profile once a day.
+- Polls Finnhub for the latest quote of every traded symbol once a minute, and refreshes a year of daily closes (from Yahoo Finance) and the sector profile (from Finnhub) once a day.
 
 ## Architecture
 
@@ -35,25 +35,25 @@ flowchart LR
     API --> DB[(PostgreSQL)]
     CALC --> DB
     S1 -->|/quote| FH[Finnhub API]
-    S2 -->|/stock/candle| FH
+    S2 -->|chart v8, daily| YF[Yahoo Finance]
     S3 -->|/stock/profile2| FH
     S1 --> DB
     S2 --> DB
     S3 --> DB
 ```
 
-Requests never call Finnhub directly. Three schedulers write quotes (`PriceSnapshot`), daily closes (`PriceHistory`) and sectors (`SymbolProfile`) to Postgres, and the API reads only from the database, so a slow or failing price API does not block a page load; the cost is that prices are up to a minute old. Holdings are not stored: `HoldingCalculator` replays the transaction list each time and uses average cost basis, so a SELL realizes `(sell price - average cost) x quantity`. The calculators are pure static functions that take transactions and price lookups and do no I/O, which keeps them unit-testable without a database. `PerformanceCalculator` uses SPY's dates as the trading-day timeline, carries each symbol's last close forward over gaps, and starts both series at 0% on the portfolio's first funded day; it is a price-curve comparison, not a cash-flow-adjusted return. The schema is managed by Hibernate (`ddl-auto: update`), with no migration tool.
+Requests never call Finnhub or Yahoo directly. Three schedulers write quotes (`PriceSnapshot`), daily closes (`PriceHistory`) and sectors (`SymbolProfile`) to Postgres, and the API reads only from the database, so a slow or failing price API does not block a page load; the cost is that prices are up to a minute old. Holdings are not stored: `HoldingCalculator` replays the transaction list each time and uses average cost basis, so a SELL realizes `(sell price - average cost) x quantity`. The calculators are pure static functions that take transactions and price lookups and do no I/O, which keeps them unit-testable without a database. `PerformanceCalculator` uses SPY's dates as the trading-day timeline, carries each symbol's last close forward over gaps, and starts both series at 0% on the portfolio's first funded day; it is a price-curve comparison, not a cash-flow-adjusted return. The schema is managed by Hibernate (`ddl-auto: update`), with no migration tool.
 
 ## Stack
 
 - Backend: Java 21, Spring Boot 3.3 (web, data JPA, validation), PostgreSQL driver, Lombok
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS 3, Chart.js with react-chartjs-2
-- Data: PostgreSQL 16 (Docker Compose), Finnhub REST API for prices and company profiles
+- Data: PostgreSQL 16 (Docker Compose), Finnhub REST API for quotes and company profiles, Yahoo Finance chart endpoint for daily closes
 - Tests: JUnit 5, Spring Boot Test, Testcontainers (PostgreSQL), Vitest
 
 ## Run it locally
 
-Requires Docker. A Finnhub API key is needed for real prices; without one the backend falls back to the key `demo`.
+Requires Docker. A Finnhub API key is needed for real quotes and sectors; without one the backend falls back to the key `demo`. Daily closes come from Yahoo Finance's unofficial chart endpoint, which needs no key but can change without notice; Finnhub's `/stock/candle` is not available on free keys.
 
 ```bash
 export FINNHUB_API_KEY=your_key
